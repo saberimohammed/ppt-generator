@@ -1,0 +1,95 @@
+import streamlit as st
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+from pptx.dml.color import RGBColor
+from io import BytesIO
+from datetime import date
+
+# --- دالة مساعدة لدعم اتجاه النص العربي (Right-to-Left) ---
+def set_rtl(paragraph):
+    """تعديل خصائص الفقرة لتدعم اتجاه النص العربي من اليمين لليسار"""
+    pPr = paragraph._p.get_or_add_pPr()
+    pPr.set('rtl', '1')
+
+# --- دالة بناء العرض التقديمي الاحترافي ---
+def generate_student_ppt(data, theme_color_rgb):
+    prs = Presentation()
+    r, g, b = theme_color_rgb
+
+    # ضبط حجم الشريحة ليكون عريضاً (16:9) وهو المعيار الحديث
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+
+    # 1. شريحة العنوان (Title Slide)
+    slide_layout = prs.slide_layouts[0]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # تنسيق العنوان الرئيسي
+    title = slide.shapes.title
+    title.text = data['unit_name']
+    p_title = title.text_frame.paragraphs[0]
+    p_title.font.color.rgb = RGBColor(r, g, b)
+    p_title.font.bold = True
+    p_title.font.size = Pt(54)
+    set_rtl(p_title) # دعم العربية
+    
+    # تنسيق العنوان الفرعي (بيانات الطالبة)
+    subtitle = slide.placeholders[1]
+    subtitle.text = (f"المادة: {data['subject']}\n"
+                     f"إعداد الطالبة: {data['student_name']}\n"
+                     f"التاريخ: {data['date']}")
+    for para in subtitle.text_frame.paragraphs:
+        para.alignment = PP_ALIGN.CENTER
+        para.font.size = Pt(28)
+        set_rtl(para) # دعم العربية
+
+    # 2. شريحة المحتوى (Content Slide)
+    lines = data['content'].split('\n')
+    if lines:
+        slide_c = prs.slides.add_slide(prs.slide_layouts[1])
+        # تنسيق عنوان شريحة المحتوى
+        title_c = slide_c.shapes.title
+        title_c.text = "محتوى الدرس / Lesson Highlights"
+        set_rtl(title_c.text_frame.paragraphs[0])
+        
+        tf = slide_c.placeholders[1].text_frame
+        tf.word_wrap = True
+        
+        for line in lines:
+            if line.strip():
+                p = tf.add_paragraph()
+                p.text = line.strip()
+                p.level = 0
+                p.font.size = Pt(24)
+                p.alignment = PP_ALIGN.RIGHT # محاذاة لليمين لأن المحتوى عربي
+                set_rtl(p) # دعم العربية
+
+    # 3. شريحة الختام (Closing Slide)
+    end_layout = prs.slide_layouts[1]
+    end_slide = prs.slides.add_slide(end_layout)
+    
+    end_title = end_slide.shapes.title
+    end_title.text = "شكر وتقدير"
+    p_end_t = end_title.text_frame.paragraphs[0]
+    p_end_t.font.color.rgb = RGBColor(r, g, b)
+    p_end_t.font.bold = True
+    set_rtl(p_end_t)
+    
+    tf_end = end_slide.placeholders[1].text_frame
+    tf_end.text = f"شكراً لمتابعتكم، كان معكم الطالبة {data['student_name']}\nنرجو أن يكون العرض قد نال إعجابكم"
+    for para in tf_end.paragraphs:
+        para.alignment = PP_ALIGN.CENTER
+        para.font.size = Pt(32)
+        set_rtl(para)
+
+    # تحويل الملف إلى Bytes ليتمكن المتصفح من تحميله
+    ppt_output = BytesIO()
+    prs.save(ppt_output)
+    ppt_output.seek(0)
+    return ppt_output
+
+# --- واجهة المستخدم الرئيسية (Streamlit) ---
+st.set_page_config(page_title="Al-Yasser PPT Generator", page_icon="🎓", layout="wide")
+
+# تخصيص واجهة
